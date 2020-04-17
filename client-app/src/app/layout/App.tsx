@@ -1,77 +1,29 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useContext } from "react";
 import { Container } from "semantic-ui-react";
-import axios from "axios";
-import { IActivity } from "../models/activity";
 import NavBar from "../../features/Nav/NavBar";
 import ActivityDashBoard from "../../features/Activities/DashBoard/ActivityDashBoard";
+import LoadingComponent from "./LoadingComponent";
+import ActivityStore from "../stores/activityStore";
+import { observer } from "mobx-react-lite";
 
 const App = () => {
-  const [activities, setActivities] = useState<IActivity[]>([]);
-  const [selectedActivity, setSelectedActivity] = useState<IActivity | null>(
-    null
-  );
-  const [editMode, setEditMode] = useState(false);
-
-  const handlerSelectActivity = (id: string) => {
-    setSelectedActivity(activities.filter((a) => a.id === id)[0]);
-    setEditMode(false);
-  };
-
-  const handleOpenCreateForm = () => {
-    setSelectedActivity(null);
-    setEditMode(true);
-  };
+  const activityStore = useContext(ActivityStore);
 
   useEffect(() => {
-    axios
-      .get<IActivity[]>("http://localhost:5000/activities")
-      .then((response) => {
-        let activities: IActivity[] = [];
-        response.data.forEach((a) => {
-          a.date = a.date.split(".")[0];
-          activities.push(a);
-        });
-        setActivities(activities);
-      });
-  }, []);
+    activityStore.loadActivities();
+  }, [activityStore]);
 
-  const handleCreateActivity = (activity: IActivity) => {
-    setActivities([...activities, activity]);
-    setSelectedActivity(activity);
-    setEditMode(false);
-  };
-
-  const handlerEditActivity = (activity: IActivity) => {
-    setActivities([
-      ...activities.filter(a => a.id !== activity.id),
-      activity,
-    ]);
-    setSelectedActivity(activity);
-    setEditMode(false);
-  };
-
-  const handlerDeleteActivity = (id: string) => {
-    setActivities([...activities.filter(a => a.id !== id)])
-  };
+  if (activityStore.initialLoading)
+    return <LoadingComponent content="Loading activities..." />;
 
   return (
     <div>
-      <NavBar openCreateForm={handleOpenCreateForm} />
+      <NavBar />
       <Container style={{ marginTop: "7em" }}>
-        <ActivityDashBoard
-          activities={activities}
-          selectActivity={handlerSelectActivity}
-          selectedActivity={selectedActivity}
-          editMode={editMode}
-          setEditMode={setEditMode}
-          setSelectedActivity={setSelectedActivity}
-          createActivity={handleCreateActivity}
-          editActivity={handlerEditActivity}
-          deleteActivity={handlerDeleteActivity}
-        />
+        <ActivityDashBoard />
       </Container>
     </div>
   );
 };
 
-export default App;
+export default observer(App);
