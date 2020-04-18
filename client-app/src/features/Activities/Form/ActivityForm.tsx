@@ -1,42 +1,64 @@
-import React, { useState, FormEvent, useContext } from "react";
+import React, { useState, FormEvent, useContext, useEffect } from "react";
 import { Segment, Form, Button } from "semantic-ui-react";
 import { IActivity } from "../../../app/models/activity";
 import { v4 as uuid } from "uuid";
-import ActivityStore from '../../../app/stores/activityStore'
+import ActivityStore from "../../../app/stores/activityStore";
 import { observer } from "mobx-react-lite";
+import { RouteComponentProps } from "react-router-dom";
 
-interface IProps {
-  activity: IActivity | undefined;
+interface DetailsParam {
+  id: string;
 }
 
-const ActivityForm: React.FC<IProps> = ({
-  activity: activityForm,
+const ActivityForm: React.FC<RouteComponentProps<DetailsParam>> = ({
+  match,
+  history,
 }) => {
   const activityStore = useContext(ActivityStore);
-  const { createActivity, submitting, setEditMode, editActivity } = activityStore;
+  const {
+    createActivity,
+    submitting,
+    editActivity,
+    activity: activityForm,
+    loadActivity,
+    clearActivity,
+  } = activityStore;
 
-  const initializeForm = () => {
-    if (activityForm) {
-      return activityForm;
-    } else {
-      return {
-        id: "",
-        title: "",
-        category: "",
-        description: "",
-        date: "",
-        city: "",
-        venue: "",
-      };
+  const [activity, setActivity] = useState<IActivity>({
+    id: "",
+    title: "",
+    category: "",
+    description: "",
+    date: "",
+    city: "",
+    venue: "",
+  });
+
+  useEffect(() => {
+    //console.log("Mounting match id: " + match.params.id);
+    if (match.params.id && activity.id.length === 0) {
+      //console.log("Entro");
+      loadActivity(match.params.id).then(
+        () => activityForm && setActivity(activityForm)
+      );
     }
-  };
-
-  const [activity, setActivity] = useState<IActivity>(initializeForm);
+    return () => {
+      clearActivity();
+      //console.log("Dismounting");
+    };
+  }, [
+    loadActivity,
+    match.params.id,
+    clearActivity,
+    activityForm,
+    activity.id.length,
+  ]);
 
   const handleInputChange = (
     event: FormEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = event.currentTarget;
+    console.log(name + value);
     setActivity({ ...activity, [name]: value });
   };
 
@@ -46,8 +68,14 @@ const ActivityForm: React.FC<IProps> = ({
         ...activity,
         id: uuid(),
       };
-      createActivity(newActivity);
-    } else editActivity(activity);
+      createActivity(newActivity).then(() => {
+        history.push(`/activities/${newActivity.id}`);
+      });
+    } else
+      editActivity(activity).then(() => {
+        console.log('Redirecting');
+        history.push(`/activities/${activity.id}`);
+      });
   };
 
   return (
@@ -92,9 +120,15 @@ const ActivityForm: React.FC<IProps> = ({
           value={activity.venue}
         />
 
-        <Button loading={submitting} floated="right" positive type="submit" content="Submit" />
         <Button
-          onClick={() => setEditMode(false)}
+          loading={submitting}
+          floated="right"
+          positive
+          type="submit"
+          content="Submit"
+        />
+        <Button
+          onClick={() => history.push("/activities")}
           floated="right"
           type="button"
           content="Cancel"

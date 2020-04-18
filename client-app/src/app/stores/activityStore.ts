@@ -7,7 +7,7 @@ configure({ enforceActions: "always" });
 
 class ActivityStore {
   @observable activitiesRegistry = new Map();
-  @observable selectedActivity: IActivity | undefined;
+  @observable activity: IActivity | null = null;
   @observable initialLoading = false;
   @observable editMode = false;
   @observable submitting = false;
@@ -24,7 +24,7 @@ class ActivityStore {
     this.initialLoading = true;
     try {
       const activities = await agent.Activities.list();
-      runInAction('Loading activities',() => {
+      runInAction("Loading activities", () => {
         activities.forEach((activity) => {
           activity.date = activity.date.split(".")[0];
           this.activitiesRegistry.set(activity.id, activity);
@@ -32,26 +32,30 @@ class ActivityStore {
         });
       });
     } catch (error) {
-      runInAction('Loading activities error',() => {
+      runInAction("Loading activities error", () => {
         console.log(error);
         this.initialLoading = false;
       });
     }
   };
 
+  @action clearActivity = () => { 
+    this.activity = null;
+  };
+
   @action createActivity = async (activity: IActivity) => {
     this.submitting = true;
     try {
       await agent.Activities.create(activity).then(() => {
-        runInAction('Creating activity',() => {
+        runInAction("Creating activity", () => {
           this.activitiesRegistry.set(activity.id, activity);
-          this.selectedActivity = activity;
+          this.activity = activity;
           this.submitting = false;
           this.editMode = false;
         });
       });
     } catch (error) {
-      runInAction('Creating activity error',() => {
+      runInAction("Creating activity error", () => {
         console.log(error);
         this.submitting = false;
       });
@@ -62,14 +66,14 @@ class ActivityStore {
     this.submitting = true;
     try {
       await agent.Activities.update(activity);
-      runInAction('Editing activity',() => {
+      runInAction("Editing activity", () => {
         this.activitiesRegistry.set(activity.id, activity);
-        this.selectedActivity = activity;
+        this.activity = activity;
         this.submitting = false;
         this.editMode = false;
       });
     } catch (error) {
-      runInAction('Editing activity error',() => {
+      runInAction("Editing activity error", () => {
         console.log(error);
         this.submitting = false;
       });
@@ -80,7 +84,7 @@ class ActivityStore {
     event: SyntheticEvent<HTMLButtonElement>,
     id: string
   ) => {
-    this.selectedActivity = undefined;
+    this.activity = null;
     this.editMode = false;
     this.submitting = true;
     this.target = event.currentTarget.name;
@@ -99,23 +103,43 @@ class ActivityStore {
     }
   };
 
+  @action loadActivity = async (id: string) => {
+    let fetchedActivity = this.getActivity(id);
+    if (fetchedActivity) {
+      this.activity = fetchedActivity;
+    } else {
+      this.initialLoading = true;
+      try {
+        fetchedActivity = await agent.Activities.details(id);
+        runInAction("Loading activity", () => {
+          this.activity = fetchedActivity;
+          this.initialLoading = false;
+        });
+      } catch (error) {
+        runInAction("Loading activity error", () => {
+          this.initialLoading = false;
+        });
+        console.log(error);
+      }
+    } 
+  };
+
+  getActivity = (id: string) => {
+    return this.activitiesRegistry.get(id);
+  };
+
   @action selectActivity = (id: string) => {
     this.editMode = false;
-    this.selectedActivity = this.activitiesRegistry.get(id);
-    //this.editMode = true;
+    this.activity = this.activitiesRegistry.get(id);
   };
 
   @action handleOpenCreateForm = () => {
-    this.selectedActivity = undefined;
+    this.activity = null;
     this.editMode = true;
   };
 
-  @action setEditMode = (state: boolean) => {
-    this.editMode = state;
-  };
-
-  @action setSelectedActivity = (activity: IActivity | undefined) => {
-    this.selectedActivity = activity;
+  @action setSelectedActivity = (activity: IActivity | null) => {
+    this.activity = activity;
   };
 }
 
