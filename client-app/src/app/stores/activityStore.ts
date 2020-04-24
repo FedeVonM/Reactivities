@@ -2,6 +2,8 @@ import { observable, action, computed, configure, runInAction } from "mobx";
 import { createContext, SyntheticEvent } from "react";
 import { IActivity } from "../models/activity";
 import agent from "../api/agent";
+import { history } from "../..";
+import { toast } from "react-toastify";
 
 configure({ enforceActions: "always" });
 
@@ -14,8 +16,25 @@ class ActivityStore {
   @observable target = "";
 
   @computed get activitiesByDate() {
-    return Array.from(this.activitiesRegistry.values()).sort(
-      (a, b) => Date.parse(a.date) - Date.parse(b.date)
+    return this.groupActivityByDate(
+      Array.from(this.activitiesRegistry.values())
+    );
+  }
+
+  groupActivityByDate(activities: IActivity[]) {
+    const sortedActivities = activities.sort(
+      (a, b) => a.date.getTime() - b.date.getTime()
+    );
+    return Object.entries(
+      sortedActivities.reduce((activities, activity) => {
+        const date = activity.date.toISOString().split("T")[0];
+
+        activities[date] = activities[date]
+          ? [...activities[date], activity]
+          : [activity];
+
+        return activities;
+      }, {} as { [key: string]: IActivity[] })
     );
   }
 
@@ -26,11 +45,12 @@ class ActivityStore {
       const activities = await agent.Activities.list();
       runInAction("Loading activities", () => {
         activities.forEach((activity) => {
-          activity.date = activity.date.split(".")[0];
+          activity.date = new Date(activity.date);
           this.activitiesRegistry.set(activity.id, activity);
           this.initialLoading = false;
         });
       });
+      console.log(this.groupActivityByDate(activities));
     } catch (error) {
       runInAction("Loading activities error", () => {
         console.log(error);
@@ -39,7 +59,7 @@ class ActivityStore {
     }
   };
 
-  @action clearActivity = () => { 
+  @action clearActivity = () => {
     this.activity = null;
   };
 
@@ -54,11 +74,13 @@ class ActivityStore {
           this.editMode = false;
         });
       });
+      history.push(`/activities/${activity.id}`);
     } catch (error) {
       runInAction("Creating activity error", () => {
-        console.log(error);
+        console.log(error.response);
         this.submitting = false;
       });
+      toast.error("Problem submitting data.");
     }
   };
 
@@ -72,11 +94,13 @@ class ActivityStore {
         this.submitting = false;
         this.editMode = false;
       });
+      history.push(`/activities/${activity.id}`);
     } catch (error) {
       runInAction("Editing activity error", () => {
-        console.log(error);
+        console.log(error.response);
         this.submitting = false;
       });
+      toast.error("Problem submitting data.");
     }
   };
 
@@ -107,21 +131,25 @@ class ActivityStore {
     let fetchedActivity = this.getActivity(id);
     if (fetchedActivity) {
       this.activity = fetchedActivity;
+      return fetchedActivity;
     } else {
       this.initialLoading = true;
       try {
         fetchedActivity = await agent.Activities.details(id);
         runInAction("Loading activity", () => {
+          fetchedActivity.date = new Date(fetchedActivity.date);
           this.activity = fetchedActivity;
+          this.activitiesRegistry.set(fetchedActivity.id, fetchedActivity);
           this.initialLoading = false;
         });
+        return fetchedActivity;
       } catch (error) {
         runInAction("Loading activity error", () => {
           this.initialLoading = false;
         });
         console.log(error);
       }
-    } 
+    }
   };
 
   getActivity = (id: string) => {
